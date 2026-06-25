@@ -518,18 +518,46 @@
     quotes:true,
     dialogueColor:'inherit'
   };
-  const incomingExcerptData = Array.isArray(window.__CAVEDUCK_EXCERPT_DATA__)
-    ? window.__CAVEDUCK_EXCERPT_DATA__
-    : [];
+  function normalizeIncomingExcerptData(value){
+    return Array.isArray(value)
+      ? value
+          .map(item => ({
+            type: item && item.type === 'dialogue' ? 'dialogue' : 'narration',
+            text: String(item && item.text != null ? item.text : '').trim()
+          }))
+          .filter(item => item.text)
+      : [];
+  }
 
-  const originalSegments = incomingExcerptData.length
-    ? incomingExcerptData
-        .map(item => ({
-          type: item && item.type === 'dialogue' ? 'dialogue' : 'narration',
-          text: String(item && item.text != null ? item.text : '').trim()
-        }))
-        .filter(item => item.text)
-    : [{ type:'narration', text:text.textContent.trim() }];
+  let originalSegments = normalizeIncomingExcerptData(window.__CAVEDUCK_EXCERPT_DATA__);
+  if (!originalSegments.length) {
+    originalSegments = [{ type:'narration', text:text.textContent.trim() }];
+  }
+
+  const embedParams = new URLSearchParams(window.location.search);
+  const embedToken = embedParams.get('token') || '';
+
+  function postToBookmarklet(type, extra = {}){
+    if (window.parent === window) return;
+    window.parent.postMessage({ type, token:embedToken, ...extra }, '*');
+  }
+
+  function receiveExcerptData(value){
+    const nextSegments = normalizeIncomingExcerptData(value);
+    if (!nextSegments.length) return false;
+    originalSegments = nextSegments;
+    renderExcerpt();
+    return true;
+  }
+
+  window.addEventListener('message', event => {
+    if (event.source !== window.parent) return;
+    const data = event.data;
+    if (!data || data.type !== 'PUDDINGCAT_EXCERPT_INIT') return;
+    if (embedToken && data.token !== embedToken) return;
+    if (!receiveExcerptData(data.segments)) return;
+    postToBookmarklet('PUDDINGCAT_EDITOR_RECEIVED', { requestId:data.requestId || '' });
+  });
 
   const dialogueQuotePairs = new Map([
     ['"', '"'], ['“', '”'], ['„', '”'], ['「', '」'], ['『', '』'],
@@ -1363,7 +1391,10 @@
     showToast('PNG 이미지를 복사했어요');
   }
 
-  document.getElementById('cancel').addEventListener('click', () => showToast('편집을 취소했어요'));
+  document.getElementById('cancel').addEventListener('click', () => {
+    showToast('편집을 취소했어요');
+    postToBookmarklet('PUDDINGCAT_EDITOR_CLOSE');
+  });
   document.getElementById('share').addEventListener('click', openShareSheet);
   closeShareSheetButton.addEventListener('click', closeShareSheet);
   shareSheet.addEventListener('click', event => {
@@ -1425,6 +1456,7 @@
   renderExcerpt();
   drawBackground();
   schedulePreviewTextLayout();
+  postToBookmarklet('PUDDINGCAT_EDITOR_READY');
 })();
 
 </script>
