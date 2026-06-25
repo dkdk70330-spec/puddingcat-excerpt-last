@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>PuddingCat caveduck excerpt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gaegu:wght@400;700&family=Gasoek+One&family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Hahmlet:wght@400;700;900&family=IBM+Plex+Sans+KR:wght@400;700&family=Jua&family=Nanum+Brush+Script&family=Nanum+Gothic:wght@400;700;800&family=Nanum+Myeongjo:wght@400;700;800&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;700;900&family=Noto+Serif+KR:wght@400;700;900&family=Song+Myung&display=swap">
 <style>
   :root{
     color-scheme:light;
@@ -124,6 +128,7 @@
   .toggle input:checked + .toggle-track::after{transform:translateX(15px)}
 
   .segmented,.weight-options{display:flex;gap:5px;flex-wrap:wrap}
+  #fontButtons{max-height:132px;overflow:auto;align-content:flex-start;padding:2px 1px;scrollbar-width:thin}
   .seg{height:29px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#69727e;padding:0 9px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap}
   .seg.active{background:var(--ink);border-color:var(--ink);color:#fff}
   .stepper{display:flex;align-items:center;gap:7px}
@@ -332,6 +337,19 @@
               <button class="seg" data-font="nanumgothic">나눔고딕</button>
               <button class="seg" data-font="nanummyeongjo">나눔명조</button>
               <button class="seg" data-font="notosans">본고딕</button>
+              <button class="seg" data-font="notoserif">본명조</button>
+              <button class="seg" data-font="gowunbatang">고운바탕</button>
+              <button class="seg" data-font="gowundodum">고운돋움</button>
+              <button class="seg" data-font="hahmlet">함렛</button>
+              <button class="seg" data-font="songmyung">송명</button>
+              <button class="seg" data-font="nanumpen">나눔펜</button>
+              <button class="seg" data-font="nanumbrush">나눔붓</button>
+              <button class="seg" data-font="gaegu">개구</button>
+              <button class="seg" data-font="jua">주아</button>
+              <button class="seg" data-font="dohyeon">도현</button>
+              <button class="seg" data-font="blackhan">검은고딕</button>
+              <button class="seg" data-font="gasoek">가속원</button>
+              <button class="seg" data-font="ibmplex">IBM Plex</button>
               <button class="seg" data-font="dotum">돋움</button>
             </div>
           </div>
@@ -395,6 +413,10 @@
             <div class="advanced-control dialogue-colors" id="dialogueColors">
               <button class="unset-color active" data-dialogue-color="inherit">미지정</button>
               <button class="dialogue-color-dot" data-dialogue-color="#ffc400" aria-label="노란색"></button>
+              <label class="custom-text-color" id="customDialogueColorLabel" aria-label="대사 색상 직접 지정">
+                <span>색</span>
+                <input id="customDialogueColor" type="color" value="#ff5b8a" aria-label="대사 색상 직접 지정">
+              </label>
             </div>
           </div>
           <div class="advanced-row">
@@ -454,6 +476,8 @@
   const toast = document.getElementById('toast');
   const customTextColor = document.getElementById('customTextColor');
   const customTextColorLabel = document.getElementById('customTextColorLabel');
+  const customDialogueColor = document.getElementById('customDialogueColor');
+  const customDialogueColorLabel = document.getElementById('customDialogueColorLabel');
   const authorEl = document.querySelector('.author');
   const brandEl = document.querySelector('.brand');
   const shareSheet = document.getElementById('shareSheet');
@@ -529,9 +553,31 @@
       : [];
   }
 
+  function cleanMetaValue(value){
+    return String(value == null ? '' : value)
+      .replace(/[\r\n\t]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  function normalizeIncomingMeta(value){
+    const source = value && typeof value === 'object' ? value : {};
+    return {
+      characterName: cleanMetaValue(source.characterName || source.charName || source.character || ''),
+      creatorNickname: cleanMetaValue(source.creatorNickname || source.creatorName || source.creator || '')
+    };
+  }
+
   let originalSegments = normalizeIncomingExcerptData(window.__CAVEDUCK_EXCERPT_DATA__);
+  let excerptMeta = normalizeIncomingMeta(window.__CAVEDUCK_EXCERPT_META__);
   if (!originalSegments.length) {
     originalSegments = [{ type:'narration', text:text.textContent.trim() }];
+  }
+
+  function renderAttribution(){
+    const characterName = excerptMeta.characterName || '{{char}}';
+    const creatorNickname = excerptMeta.creatorNickname || '제작자';
+    authorEl.textContent = `${characterName} - ${creatorNickname}`;
   }
 
   const embedParams = new URLSearchParams(window.location.search);
@@ -542,10 +588,12 @@
     window.parent.postMessage({ type, token:embedToken, ...extra }, '*');
   }
 
-  function receiveExcerptData(value){
+  function receiveExcerptData(value, meta){
     const nextSegments = normalizeIncomingExcerptData(value);
     if (!nextSegments.length) return false;
     originalSegments = nextSegments;
+    excerptMeta = normalizeIncomingMeta(meta);
+    renderAttribution();
     renderExcerpt();
     return true;
   }
@@ -555,7 +603,7 @@
     const data = event.data;
     if (!data || data.type !== 'PUDDINGCAT_EXCERPT_INIT') return;
     if (embedToken && data.token !== embedToken) return;
-    if (!receiveExcerptData(data.segments)) return;
+    if (!receiveExcerptData(data.segments, data.meta)) return;
     postToBookmarklet('PUDDINGCAT_EDITOR_RECEIVED', { requestId:data.requestId || '' });
   });
 
@@ -587,6 +635,20 @@
       : trimmed;
   }
 
+  function hasOuterDialogueQuotes(value){
+    const trimmed = String(value || '').trim();
+    if (trimmed.length < 2) return false;
+    const expectedClose = dialogueQuotePairs.get(trimmed[0]);
+    return Boolean(expectedClose && trimmed.endsWith(expectedClose));
+  }
+
+  function applyDialogueQuoteSetting(value){
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return trimmed;
+    if (!state.quotes) return stripOuterDialogueQuotes(trimmed);
+    return hasOuterDialogueQuotes(trimmed) ? trimmed : `“${trimmed}”`;
+  }
+
   function renderExcerpt(){
     const pairs = getReplacementPairs();
     const fragment = document.createDocumentFragment();
@@ -596,8 +658,8 @@
       item.className = `excerpt-segment ${segment.type}`;
 
       let value = applyReplacementPairs(segment.text, pairs);
-      if (segment.type === 'dialogue' && !state.quotes) {
-        value = stripOuterDialogueQuotes(value);
+      if (segment.type === 'dialogue') {
+        value = applyDialogueQuoteSetting(value);
       }
 
       item.textContent = value;
@@ -1014,21 +1076,45 @@
     });
   }
 
+  const fontMap = {
+    batang:{ css:'Batang, "KoPub Batang", "Noto Serif KR", serif', load:'Batang' },
+    gothic:{ css:'"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif', load:'Malgun Gothic' },
+    myeongjo:{ css:'"Noto Serif KR", "Nanum Myeongjo", serif', load:'Noto Serif KR' },
+    pretendard:{ css:'Pretendard, "Noto Sans KR", sans-serif', load:'Pretendard' },
+    nanumgothic:{ css:'"Nanum Gothic", "Noto Sans KR", sans-serif', load:'Nanum Gothic' },
+    nanummyeongjo:{ css:'"Nanum Myeongjo", "Noto Serif KR", serif', load:'Nanum Myeongjo' },
+    notosans:{ css:'"Noto Sans KR", sans-serif', load:'Noto Sans KR' },
+    notoserif:{ css:'"Noto Serif KR", serif', load:'Noto Serif KR' },
+    gowunbatang:{ css:'"Gowun Batang", "Noto Serif KR", serif', load:'Gowun Batang' },
+    gowundodum:{ css:'"Gowun Dodum", "Noto Sans KR", sans-serif', load:'Gowun Dodum' },
+    hahmlet:{ css:'Hahmlet, "Noto Serif KR", serif', load:'Hahmlet' },
+    songmyung:{ css:'"Song Myung", "Noto Serif KR", serif', load:'Song Myung' },
+    nanumpen:{ css:'"Nanum Pen Script", cursive', load:'Nanum Pen Script' },
+    nanumbrush:{ css:'"Nanum Brush Script", cursive', load:'Nanum Brush Script' },
+    gaegu:{ css:'Gaegu, cursive', load:'Gaegu' },
+    jua:{ css:'Jua, "Noto Sans KR", sans-serif', load:'Jua' },
+    dohyeon:{ css:'"Do Hyeon", "Noto Sans KR", sans-serif', load:'Do Hyeon' },
+    blackhan:{ css:'"Black Han Sans", "Noto Sans KR", sans-serif', load:'Black Han Sans' },
+    gasoek:{ css:'"Gasoek One", "Noto Sans KR", sans-serif', load:'Gasoek One' },
+    ibmplex:{ css:'"IBM Plex Sans KR", "Noto Sans KR", sans-serif', load:'IBM Plex Sans KR' },
+    dotum:{ css:'Dotum, "Malgun Gothic", sans-serif', load:'Dotum' }
+  };
+
+  async function ensureSelectedFontReady(){
+    const entry = fontMap[state.font] || fontMap.batang;
+    if (!document.fonts || !entry) return;
+    try {
+      await document.fonts.load(`${state.weight} ${13 + state.size}px "${entry.load}"`);
+      await document.fonts.ready;
+    } catch (_) {}
+  }
+
   function setFont(font){
-    state.font = font;
-    const map = {
-      batang:'Batang, "KoPub Batang", serif',
-      gothic:'"Malgun Gothic", "Apple SD Gothic Neo", sans-serif',
-      myeongjo:'"NanumMyeongjo", "Noto Serif KR", serif',
-      pretendard:'Pretendard, "Noto Sans KR", sans-serif',
-      nanumgothic:'"Nanum Gothic", "Malgun Gothic", sans-serif',
-      nanummyeongjo:'"NanumMyeongjo", "Noto Serif KR", serif',
-      notosans:'"Noto Sans KR", "Malgun Gothic", sans-serif',
-      dotum:'Dotum, "Malgun Gothic", sans-serif'
-    };
-    text.style.fontFamily = map[font];
-    document.querySelectorAll('#fontButtons .seg').forEach(b => b.classList.toggle('active', b.dataset.font === font));
-    schedulePreviewTextLayout();
+    state.font = fontMap[font] ? font : 'batang';
+    const entry = fontMap[state.font];
+    text.style.fontFamily = entry.css;
+    document.querySelectorAll('#fontButtons .seg').forEach(b => b.classList.toggle('active', b.dataset.font === state.font));
+    ensureSelectedFontReady().then(schedulePreviewTextLayout);
   }
 
   function setSize(value){
@@ -1163,15 +1249,28 @@
     renderExcerpt();
   });
 
+  function clearDialogueColorSelection(){
+    document.querySelectorAll('#dialogueColors [data-dialogue-color]').forEach(btn => btn.classList.remove('active'));
+    customDialogueColorLabel.classList.remove('active');
+  }
+
   document.querySelectorAll('#dialogueColors [data-dialogue-color]').forEach(btn => btn.addEventListener('click', () => {
     state.dialogueColor = btn.dataset.dialogueColor;
+    clearDialogueColorSelection();
+    btn.classList.add('active');
     document.querySelectorAll('#dialogueColors [data-dialogue-color]').forEach(x => {
-      const selected = x === btn;
-      x.classList.toggle('active', selected);
-      x.setAttribute('aria-pressed', String(selected));
+      x.setAttribute('aria-pressed', String(x === btn));
     });
     renderExcerpt();
   }));
+
+  customDialogueColor.addEventListener('input', () => {
+    state.dialogueColor = customDialogueColor.value;
+    customDialogueColorLabel.style.background = state.dialogueColor;
+    clearDialogueColorSelection();
+    customDialogueColorLabel.classList.add('active');
+    renderExcerpt();
+  });
 
   function applyKeywordReplacements(){
     renderExcerpt();
@@ -1229,6 +1328,8 @@
     shade.style.background = 'transparent';
     customTextColor.value = '#ff5b8a';
     customTextColorLabel.style.background = customTextColor.value;
+    customDialogueColor.value = '#ff5b8a';
+    customDialogueColorLabel.style.background = customDialogueColor.value;
     document.querySelector('#colorButtons [data-color="#ffffff"]').click();
     document.querySelector('#alignButtons [data-align="left"]').click();
     document.querySelector('#weightButtons [data-weight="700"]').click();
@@ -1262,6 +1363,7 @@
   }
 
   async function renderPreviewBlob(){
+    await ensureSelectedFontReady();
     const rect = preview.getBoundingClientRect();
     const width = Math.max(1, Math.round(rect.width));
     const height = Math.max(1, Math.round(rect.height));
@@ -1449,6 +1551,8 @@
 
   setChipBackgrounds();
   customTextColorLabel.style.background = customTextColor.value;
+  customDialogueColorLabel.style.background = customDialogueColor.value;
+  renderAttribution();
   renderBackgroundEditor();
   setActiveBackgroundButton(customBackgroundButton);
   setFont('batang');
